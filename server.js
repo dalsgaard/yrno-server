@@ -45,12 +45,14 @@ srv.listen(3000);
 
 function Parser() {
   var weather = {};
+  var days = [];
   var times = [];
   var time = null;
   var meta = null;
   var location = null;
   var loc2 = false;
   var text = null;
+  var date = null;
 
   this.parser = sax.parser(true);
   this.parser.onerror = function (e) {
@@ -62,8 +64,19 @@ function Parser() {
     }
   };
   this.parser.onopentag = function(node) {
-    if (node.name.trim() === 'time') {
-      time = node.attributes;
+    if (node.name === 'time') {
+      var from = node.attributes.from.split('T');
+      var to = node.attributes.to.split('T');
+      time = {
+        from: {
+          date: from[0],
+          time: from[1]
+        },
+        to: {
+          date: to[0],
+          time: to[1]
+        }
+      };
     } else if (time) {
       time[node.name] = node.attributes;
     } else if (node.name === 'meta') {
@@ -86,16 +99,24 @@ function Parser() {
   };
   this.parser.onclosetag = function(name) {
     if (name === 'time') {
+      if (date !== time.from.date) {
+        times = [];
+        days.push({
+          date: time.from.date,
+          slots: times
+        });
+        date = time.from.date;
+      }
       times.push(time);
       time = null;
     } else if (name === 'meta') {
-      weather['meta'] = meta;
+      weather.meta = meta;
       meta = null;
     } else if (name === 'location') {
       if (loc2) {
         loc2 = false;
       } else {
-        weather['location'] = location;
+        weather.location = location;
         location = null;
       }
     } else if (meta) {
@@ -108,7 +129,7 @@ function Parser() {
   };
   var t = this;
   this.parser.onend = function () {
-    weather['forecast'] = times;
+    weather.forecast = days;
     t.ondata(JSON.stringify(weather));
     t.onend();
   };
